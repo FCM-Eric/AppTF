@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aprenda Inglês com Frases</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define a fonte Inter para todo o corpo */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f8; /* Cor de fundo suave */
+            padding: 1rem;
+        }
+        /* Estilos customizados para a transcrição fonética */
+        .phonetic-transcription {
+            font-style: italic;
+            color: #ef4444; /* Uma cor de destaque, vermelho vibrante */
+            line-height: 1.2; /* Ajusta o espaçamento da linha para ser mais aberto */
+            margin-bottom: 0.25rem; /* Espaçamento entre a transcrição e a palavra em inglês */
+            /* Font size controlled by Tailwind classes below */
+        }
+        /* Estilos customizados para a tradução em português */
+        .portuguese-translation {
+            color: #6b7280; /* Cor cinza para a tradução */
+            margin-top: 1.5rem; /* Espaçamento acima da tradução */
+            /* Font size controlled by Tailwind classes below */
+        }
+        /* Estilos para a dica de gramática */
+        .grammar-tip {
+            color: #4a5568; /* Cor cinza mais escura */
+            background-color: #e2e8f0; /* Fundo suave para a dica */
+            padding: 0.75rem 1rem;
+            border-left: 4px solid #6366f1; /* Borda colorida para destaque */
+            border-radius: 0.375rem; /* rounded-md */
+            margin-top: 1.5rem;
+            text-align: left;
+            width: 100%;
+            max-width: 90%;
+            /* Font size controlled by Tailwind classes below */
+        }
+        /* Estilo para os botões */
+        .app-button {
+            @apply px-6 py-3 rounded-xl shadow-md transition-all duration-300 ease-in-out;
+            background-image: linear-gradient(to right, #6366f1, #8b5cf6); /* Gradiente roxo/azul */
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .app-button:hover {
+            @apply scale-105 shadow-lg;
+            background-image: linear-gradient(to right, #4f46e5, #7c3aed); /* Gradiente mais escuro no hover */
+        }
+        .app-button:disabled {
+            @apply opacity-50 cursor-not-allowed;
+            background-image: none;
+            background-color: #a0aec0; /* Cor cinza para desativado */
+        }
+        /* Estilo para o seletor de nível */
+        .level-select {
+            @apply p-3 border-2 border-indigo-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+            background-color: white;
+            color: #374151;
+        }
+        /* Estilos para o container de cada palavra com sua transcrição */
+        .word-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 0.5rem; /* Aumenta o espaçamento entre as palavras */
+        }
+        /* Estilos para a palavra em inglês dentro do container */
+        .english-word {
+            font-weight: 800; /* Equivalente a font-extrabold */
+            color: #1a202c; /* Equivalente a text-gray-900 */
+            letter-spacing: -0.025em; /* Equivalente a tracking-wide */
+            line-height: 1.25; /* Equivalente a leading-tight */
+            /* Font size controlled by Tailwind classes below */
+        }
+    </style>
+</head>
+<body class="selection:bg-indigo-300 selection:text-indigo-900">
+    <div class="bg-white p-10 rounded-2xl shadow-xl max-w-2xl w-full text-center flex flex-col items-center">
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-6">Aprenda Inglês</h1>
+
+        <!-- Seletor de Nível -->
+        <div class="mb-8 w-full flex flex-col items-center">
+            <label for="level-select" class="text-base sm:text-lg font-medium text-gray-700 mb-3">Selecione o Nível:</label>
+            <select id="level-select" class="level-select w-full max-w-xs">
+                <option value="A1">A1 (Iniciante)</option>
+                <option value="A2">A2 (Básico)</option>
+                <option value="B1">B1 (Intermediário)</option>
+                <option value="B2">B2 (Intermediário Superior)</option>
+                <option value="C1">C1 (Avançado)</option>
+                <option value="C2">C2 (Proficiência)</option>
+            </select>
+        </div>
+
+        <!-- Área de Exibição da Frase (agora combinada) -->
+        <div id="phrase-container" class="flex flex-wrap justify-center items-start mb-8 w-full">
+            <!-- As unidades palavra-transcrição serão inseridas aqui por JS -->
+        </div>
+        <!-- Tradução em Português -->
+        <p id="portuguese-translation" class="portuguese-translation text-sm sm:text-base">
+            <!-- A tradução será inserida aqui por JS -->
+        </p>
+
+        <!-- Dica de Gramática -->
+        <div id="grammar-tip-display" class="grammar-tip text-sm">
+            <p class="font-semibold text-gray-800 mb-1">Dica de Gramática:</p>
+            <p id="grammar-tip-content"></p>
+        </div>
+
+        <!-- Controles de Navegação -->
+        <div class="flex flex-col sm:flex-row gap-4 w-full justify-center mt-8">
+            <button id="next-phrase-button" class="app-button">
+                Próxima frase
+            </button>
+        </div>
+
+        <!-- Mensagem de feedback (ex: "Gerando...") -->
+        <div id="feedback-message" class="mt-4 text-sm text-indigo-600 hidden"></div>
+    </div>
+
+    <script>
+        // Objeto global para armazenar a frase atual
+        let currentPhrase = null;
+        // Fila para armazenar as próximas frases pré-carregadas
+        let preloadedPhrasesQueue = [];
+        const PRELOAD_QUEUE_SIZE = 2; // Número de frases a tentar manter na fila
+
+        // Histórico de frases recentemente exibidas por nível para evitar repetição imediata
+        const phraseHistory = {};
+        const HISTORY_SIZE = 5;
+
+        // Lista de temas para variar as frases
+        const themes = [
+            "vida cotidiana", "viagens", "tecnologia", "natureza", "emoções",
+            "trabalho", "estudos", "comida", "saúde", "hobbies",
+            "relacionamentos", "cidades", "música", "filmes", "esportes",
+            "sonhos", "planos futuros", "problemas e soluções", "meio ambiente", "arte"
+        ];
+
+        // Função para obter um tema aleatório diferente do último tema usado (se houver)
+        let lastTheme = null;
+        function getRandomTheme() {
+            let newTheme = themes[Math.floor(Math.random() * themes.length)];
+            // Evita que o mesmo tema se repita imediatamente
+            while (newTheme === lastTheme && themes.length > 1) {
+                newTheme = themes[Math.floor(Math.random() * themes.length)];
+            }
+            lastTheme = newTheme;
+            return newTheme;
+        }
+
+        // Prompts para a geração de frases pelo LLM
+        const commonPhoneticRules = `
+Siga estas regras estritas para garantir consistência na transcrição fonética:
+- Use *apenas* letras do alfabeto português (a-z) e acentos (á, é, í, ó, ú, â, ã).
+- **NÃO** use 'y' para sons que podem ser representados por 'i'.
+- **NÃO** use 'w' para sons que podem ser representados por 'u' ou 'v', *exceto* em casos onde 'u' é a aproximação mais natural para o 'w' inglês (como em 'what' -> 'uót').
+- **NÃO** use 'rr' no início ou fim de palavras. Use 'r' para o som forte (como em 'rádio' ou 'carro').
+- **NÃO** use 'ss' no final de palavras.
+- **NÃO** use 'zz'.
+- **Consoantes Específicas (uso consistente):**
+    - 'k' (som de 'k'): *sempre* 'k'.
+    - 's' (som de 's' surdo, como em 'sun', 'cats'): *sempre* 's'.
+    - 's' (som de 'z' sonoro, como em 'is', 'rose', 'dogs'): *sempre* 'z'. (Ex: 'is' -> 'iz', 'dogs' -> 'dógz').
+    - 'th' (sons interdentais): *sempre* 'th'.
+    - 'r' (som 'r' inglês, retroflexo): *sempre* 'r' (como em 'rádio', 'carro').
+    - 'h' (som aspirado): *sempre* 'r' (como em 'rádio').
+    - 'ch' (som de 'tchu'): *sempre* 'tch'.
+    - 'sh' (som de 'chu'): *sempre* 'sh'.
+    - 'j' (som de 'dju'): *sempre* 'dji'. (ou 'dj' se for mais natural em alguma sílaba, como 'djâst')
+    - 'l' (som de 'l' escuro no final de sílaba ou palavra, como em 'ball'): *sempre* 'u'.
+    - 'v' (som de 'v'): *sempre* 'v'.
+    - 'x' (som de 'x' ou 'ch'): use 'x' ou 'ch' conforme a sonoridade mais comum no português para aquele contexto.
+- **Vogais e Ditongos (exemplos para consistência):**
+    - 'a' (curto, como 'cat'): 'é' (ex: cat -> quét).
+    - 'a' (longo, como 'make'): 'êi' (ex: make -> mêik).
+    - 'e' (curto, como 'bed'): 'é' (ex: bed -> béd).
+    - 'i' (curto, como 'sit'): 'í' (ex: sit -> sít).
+    - 'o' (curto, como 'hot'): 'ó' (ex: hot -> rót).
+    - 'o' (longo, como 'boat'): 'ôu' (ex: boat -> bôut).
+    - 'u' (curto, como 'cup'): 'ã' ou 'â' (ex: cup -> cãp).
+    - 'oo' (como 'book'): 'u' (ex: book -> búc).
+    - 'oo' (como 'moon'): 'u' (ex: moon -> mun).
+    - 'ou'/'ow' (como 'out', 'now'): 'áu' (ex: out -> áut).
+    - 'oi'/'oy' (como 'boy'): 'ói' (ex: boy -> bói).
+    - Sons R-coloridos ('er', 'ir', 'ur'): vogal + 'r' (ex: bird -> bãrd, teacher -> títchãr).
+
+Certifique-se de que a transcrição de cada palavra não contenha hífens internos.
+`;
+
+        const phraseGenerationPrompts = {
+            "A1": (theme) => `Gere uma frase em inglês de nível A1 para iniciantes, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática simples e relevante para o nível A1 sobre a frase gerada, escrita em português do Brasil. O formato da resposta deve ser JSON.`,
+            "A2": (theme) => `Gere uma frase em inglês de nível A2 para estudantes básicos, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática simples e relevante para o nível A2 sobre a frase gerada, escrita em português do Brasil. O formato da resposta deve ser JSON.`,
+            "B1": (theme) => `Gere uma frase em inglês de nível B1 para estudantes intermediários, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática relevante para o nível B1 sobre a frase gerada, escrita em português do Brasil. O formato da resposta deve ser JSON.`,
+            "B2": (theme) => `Gere uma frase em inglês de nível B2 para estudantes intermediários superiores, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática mais detalhada para o nível B2 sobre a frase gerada, escrita em português do Brasil. O formato da resposta deve ser JSON.`,
+            "C1": (theme) => `Gere uma frase em inglês de nível C1 para estudantes avançados, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática aprofundada para o nível C1 sobre a frase gerada, focando em nuances ou estruturas complexas, escrita em português do Brasil. O formato da resposta deve ser JSON.`,
+            "C2": (theme) => `Gere uma frase em inglês de nível C2 para estudantes com proficiência, com o tema '${theme}'. A frase deve ser única e criativa. Sua transcrição fonética aproximada para falantes de português do Brasil. ${commonPhoneticRules}
+Certifique-se de que cada palavra em inglês na frase corresponda a *exatamente uma* transcrição fonética na lista. Inclua também a tradução para o português do Brasil e uma dica de gramática de alto nível para o nível C2 sobre a frase gerada, abordando aspectos idiomáticos, formalidade ou uso sofisticado, escrita em português do Brasil. O formato da resposta deve ser JSON.`
+        };
+
+        // Elementos DOM
+        const levelSelect = document.getElementById('level-select');
+        const phraseContainer = document.getElementById('phrase-container');
+        const portugueseTranslationDisplay = document.getElementById('portuguese-translation');
+        const nextPhraseButton = document.getElementById('next-phrase-button');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const grammarTipDisplay = document.getElementById('grammar-tip-display');
+        const grammarTipContent = document.getElementById('grammar-tip-content');
+
+        /**
+         * Adiciona uma frase ao histórico para o nível atual.
+         * Garante que o histórico não exceda o HISTORY_SIZE.
+         * @param {string} level - O nível da frase.
+         * @param {string} phraseText - A frase completa em inglês (string).
+         */
+        function addToPhraseHistory(level, phraseText) {
+            if (!phraseHistory[level]) {
+                phraseHistory[level] = [];
+            }
+            // Adiciona a frase no início do array (mais recente)
+            phraseHistory[level].unshift(phraseText);
+            // Remove as frases mais antigas se o tamanho exceder o limite
+            if (phraseHistory[level].length > HISTORY_SIZE) {
+                phraseHistory[level].pop();
+            }
+            console.log(`Histórico do nível ${level}:`, phraseHistory[level]);
+        }
+
+        /**
+         * Verifica se uma frase está no histórico de frases recentes para o nível.
+         * @param {string} level - O nível da frase.
+         * @param {string} phraseText - A frase completa em inglês (string).
+         * @returns {boolean} - True se a frase estiver no histórico, false caso contrário.
+         */
+        function isPhraseInHistory(level, phraseText) {
+            return phraseHistory[level] && phraseHistory[level].includes(phraseText);
+        }
+
+        /**
+         * Atualiza a interface do usuário com a frase e seus detalhes.
+         * @param {Object} phraseData - O objeto contendo a frase, transcrição, tradução e dica de gramática.
+         */
+        function displayPhraseOnUI(phraseData) {
+            phraseContainer.innerHTML = ''; // Limpa o conteúdo anterior
+            portugueseTranslationDisplay.textContent = ''; // Limpa o conteúdo anterior
+            grammarTipContent.textContent = ''; // Limpa o conteúdo da dica de gramática
+            grammarTipDisplay.classList.add('hidden'); // Esconde a dica enquanto carrega
+
+            // Exibe a frase na interface do usuário
+            phraseData.english.forEach((word, index) => {
+                const wordContainer = document.createElement('div');
+                wordContainer.className = 'word-container';
+
+                const phoneticSpan = document.createElement('span');
+                phoneticSpan.className = 'phonetic-transcription text-xs sm:text-sm'; /* Responsive font size */
+                phoneticSpan.textContent = phraseData.phonetics[index] || '';
+
+                const englishWordSpan = document.createElement('span');
+                englishWordSpan.className = 'english-word text-2xl sm:text-3xl md:text-4xl'; /* Responsive font size */
+                englishWordSpan.textContent = word;
+
+                wordContainer.appendChild(phoneticSpan);
+                wordContainer.appendChild(englishWordSpan);
+                phraseContainer.appendChild(wordContainer);
+            });
+
+            portugueseTranslationDisplay.textContent = phraseData.portuguese;
+            grammarTipContent.textContent = phraseData.grammarTip;
+            grammarTipDisplay.classList.remove('hidden');
+        }
+
+        /**
+         * Realiza a chamada à API do Gemini para gerar uma frase.
+         * @param {string} prompt - O prompt a ser enviado ao LLM.
+         * @param {string} level - O nível atual da frase (para controle de histórico).
+         * @returns {Promise<Object|null>} - Uma promessa que resolve para o objeto da frase ou null em caso de erro.
+         */
+        async function fetchPhraseFromAPI(prompt, level) {
+            const MAX_ATTEMPTS = 5; // Número máximo de tentativas para obter uma frase única
+            let attemptCount = 0;
+
+            while (attemptCount < MAX_ATTEMPTS) {
+                attemptCount++;
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = {
+                        contents: chatHistory,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    "english": { "type": "STRING" },
+                                    "phonetics": {
+                                        "type": "ARRAY",
+                                        "items": { "type": "STRING" }
+                                    },
+                                    "portuguese": { "type": "STRING" },
+                                    "grammarTip": { "type": "STRING" }
+                                },
+                                "required": ["english", "phonetics", "portuguese", "grammarTip"]
+                            }
+                        }
+                    }
+                    const apiKey = ""; // A chave da API será fornecida automaticamente pelo ambiente Canvas.
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const responseText = await response.text();
+                    console.log("Resposta bruta do LLM (texto):", responseText);
+
+                    if (!response.ok) {
+                        console.error(`Erro HTTP: ${response.status} - ${responseText}`);
+                        feedbackMessage.textContent = `Erro da API: ${response.status}. Tentando novamente...`;
+                        continue;
+                    }
+
+                    let parsedJson;
+                    try {
+                        parsedJson = JSON.parse(responseText);
+                    } catch (jsonError) {
+                        console.error("Erro ao fazer parse do JSON do LLM:", jsonError, "Raw text:", responseText);
+                        feedbackMessage.textContent = "Erro: A resposta do LLM não é um JSON válido. Tentando novamente...";
+                        continue;
+                    }
+
+                    if (parsedJson.candidates && parsedJson.candidates.length > 0 &&
+                        parsedJson.candidates[0].content && parsedJson.candidates[0].content.parts &&
+                        parsedJson.candidates[0].content.parts.length > 0) {
+
+                        const jsonContentText = parsedJson.candidates[0].content.parts[0].text;
+                        let innerParsedJson;
+                        try {
+                            innerParsedJson = JSON.parse(jsonContentText);
+                        } catch (innerJsonError) {
+                            console.error("Erro ao fazer parse do JSON interno do LLM:", innerJsonError, "Inner text:", jsonContentText);
+                            feedbackMessage.textContent = "Erro: Conteúdo interno do LLM não é JSON válido. Tentando novamente...";
+                            continue;
+                        }
+
+                        const fullEnglishPhrase = innerParsedJson.english;
+
+                        if (isPhraseInHistory(level, fullEnglishPhrase)) {
+                            console.warn(`Frase repetida detectada: "${fullEnglishPhrase}". Tentando gerar outra... (Tentativa ${attemptCount}/${MAX_ATTEMPTS})`);
+                            feedbackMessage.textContent = `Frase repetida, buscando uma nova...`;
+                            continue;
+                        }
+
+                        const phraseData = {
+                            english: innerParsedJson.english.split(/\s+/),
+                            phonetics: innerParsedJson.phonetics,
+                            portuguese: innerParsedJson.portuguese,
+                            grammarTip: innerParsedJson.grammarTip
+                        };
+
+                        if (phraseData.english.length !== phraseData.phonetics.length) {
+                            console.warn(`Atenção: O número de palavras (${phraseData.english.length}) não corresponde ao número de transcrições fonéticas (${phraseData.phonetics.length}).`);
+                            feedbackMessage.textContent = "Erro: Desalinhamento na transcrição fonética.";
+                            return null;
+                        }
+                        return phraseData;
+                    } else {
+                        console.error("Resposta inesperada do LLM:", parsedJson);
+                        feedbackMessage.textContent = "Erro: Não foi possível gerar a frase. Resposta inesperada do LLM.";
+                        return null;
+                    }
+                } catch (error) {
+                    console.error("Erro ao chamar a API do Gemini:", error);
+                    feedbackMessage.textContent = `Erro ao gerar frase: ${error.message}. Verifique sua conexão ou tente novamente.`;
+                    return null;
+                }
+            }
+            feedbackMessage.textContent = `Não foi possível gerar uma frase única após ${MAX_ATTEMPTS} tentativas.`;
+            return null;
+        }
+
+        /**
+         * Pré-carrega a próxima frase ou frases em segundo plano para encher a fila.
+         * @returns {void}
+         */
+        async function preloadNextPhrases() {
+            const selectedLevel = levelSelect.value;
+            const currentTheme = getRandomTheme();
+            const promptGenerator = phraseGenerationPrompts[selectedLevel];
+
+            if (!promptGenerator) {
+                preloadedPhrasesQueue = [];
+                return;
+            }
+            const prompt = promptGenerator(currentTheme);
+
+            if (preloadedPhrasesQueue.length < PRELOAD_QUEUE_SIZE && feedbackMessage.classList.contains('hidden')) {
+                feedbackMessage.textContent = `Pré-carregando ${PRELOAD_QUEUE_SIZE - preloadedPhrasesQueue.length} frases sobre ${currentTheme}...`;
+                feedbackMessage.classList.remove('hidden');
+            }
+
+            while (preloadedPhrasesQueue.length < PRELOAD_QUEUE_SIZE) {
+                const fetchedPhrase = await fetchPhraseFromAPI(prompt, selectedLevel);
+                if (fetchedPhrase) {
+                    preloadedPhrasesQueue.push(fetchedPhrase);
+                    console.log(`Frase pré-carregada. Fila: ${preloadedPhrasesQueue.length}/${PRELOAD_QUEUE_SIZE}`);
+                    if (preloadedPhrasesQueue.length === PRELOAD_QUEUE_SIZE) {
+                        feedbackMessage.textContent = "Todas as frases pré-carregadas!";
+                        setTimeout(() => feedbackMessage.classList.add('hidden'), 1000);
+                    }
+                } else {
+                    feedbackMessage.textContent = "Erro ao pré-carregar frases. Tente novamente.";
+                    setTimeout(() => feedbackMessage.classList.add('hidden'), 2000);
+                    break;
+                }
+            }
+
+            if (preloadedPhrasesQueue.length >= PRELOAD_QUEUE_SIZE || !feedbackMessage.classList.contains('hidden')) {
+                setTimeout(() => feedbackMessage.classList.add('hidden'), 1000);
+            }
+        }
+
+
+        /**
+         * Gera e exibe uma frase (usando pré-carregamento se disponível).
+         * @returns {void}
+         */
+        async function generateAndDisplayPhrase() {
+            nextPhraseButton.disabled = true;
+
+            if (preloadedPhrasesQueue.length > 0) {
+                currentPhrase = preloadedPhrasesQueue.shift();
+                displayPhraseOnUI(currentPhrase);
+                feedbackMessage.classList.add('hidden');
+                addToPhraseHistory(levelSelect.value, currentPhrase.english.join(' '));
+                preloadNextPhrases();
+            } else {
+                feedbackMessage.textContent = "Gerando frase (aguarde)...";
+                feedbackMessage.classList.remove('hidden');
+                const selectedLevel = levelSelect.value;
+                const currentTheme = getRandomTheme();
+                const prompt = phraseGenerationPrompts[selectedLevel](currentTheme);
+                const fetchedPhrase = await fetchPhraseFromAPI(prompt, selectedLevel);
+
+                if (fetchedPhrase) {
+                    currentPhrase = fetchedPhrase;
+                    displayPhraseOnUI(currentPhrase);
+                    feedbackMessage.classList.add('hidden');
+                    addToPhraseHistory(levelSelect.value, currentPhrase.english.join(' '));
+                    preloadNextPhrases();
+                } else {
+                    feedbackMessage.textContent = "Erro ao gerar frase inicial. Tente novamente.";
+                    feedbackMessage.classList.remove('hidden');
+                }
+            }
+            nextPhraseButton.disabled = false;
+        }
+
+        // Event Listeners
+        levelSelect.addEventListener('change', () => {
+            preloadedPhrasesQueue = [];
+            generateAndDisplayPhrase();
+        });
+        nextPhraseButton.addEventListener('click', generateAndDisplayPhrase);
+
+        // Inicializa a aplicação quando a página carrega
+        window.onload = () => {
+            generateAndDisplayPhrase();
+        };
+    </script>
+</body>
+</html>
